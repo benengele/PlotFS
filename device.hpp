@@ -78,8 +78,9 @@ public:
         }
 
         // check signature
-        if (DeviceSignature != std::string(first_block.begin(), first_block.begin() + DeviceSignature.size())) {
-			std::cerr << "warning: missing device signature: " << path << std::endl;
+		std::string actual_signature = std::string(first_block.begin(), first_block.begin() + DeviceSignature.size());
+        if (DeviceSignature != actual_signature) {
+			std::cerr << "warning: invalid device signature, expected " << DeviceSignature << " got " + actual_signature << std::endl;
             return nullptr;
         }
 
