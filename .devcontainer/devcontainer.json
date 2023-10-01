@@ -1,5 +1,4 @@
 {
 	"name": "Alpine",
-	"dockerFile": "Dockerfile",
-	"runArgs": ["--privileged"]
+	"dockerFile": "Dockerfile"
 }

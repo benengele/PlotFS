@@ -29,7 +29,7 @@ public:
         return std::make_shared<FileHandle>(fd);
     }
     virtual ~FileHandle() { close(); }
-    void close()
+    virtual void close()
     {
         if (fd_ > 0) {
             ::close(fd_);
@@ -37,8 +37,8 @@ public:
         }
     }
 
-    bool is_open() const { return fd_ >= 0; }
-    struct stat stat() const
+    virtual bool is_open() const { return fd_ >= 0; }
+    virtual struct stat stat() const
     {
         struct stat st;
         std::memset(&st, 0, sizeof(st));
@@ -57,13 +57,13 @@ public:
 
         return st;
     }
-    uint64_t size() const { return stat().st_size; }
-    bool seek(off64_t offset) { return offset == ::lseek64(fd_, offset, SEEK_SET); }
-    bool truncate(off64_t offset = 0) { return 0 == ::ftruncate(fd_, offset); }
-    bool lock(int operation) { return 0 == ::flock(fd_, operation); }
-    bool sync() { return 0 == ::syncfs(fd_); }
+    virtual uint64_t size() const { return stat().st_size; }
+    virtual bool seek(off64_t offset) { return offset == ::lseek64(fd_, offset, SEEK_SET); }
+    virtual bool truncate(off64_t offset = 0) { return 0 == ::ftruncate(fd_, offset); }
+    virtual bool lock(int operation) { return 0 == ::flock(fd_, operation); }
+    virtual bool sync() { return 0 == ::syncfs(fd_); }
 
-    int read(uint8_t* data, size_t size)
+    virtual int read(uint8_t* data, size_t size)
     {
         auto tsize = size;
         while (size) {
@@ -78,7 +78,7 @@ public:
         return tsize;
     }
 
-    int write(const uint8_t* data, size_t size)
+    virtual int write(const uint8_t* data, size_t size)
     {
         auto tsize = size;
         while (size) {
@@ -90,9 +90,9 @@ public:
         }
         return tsize;
     }
-    int write(const std::string& buffer) { return ::write(fd_, buffer.c_str(), buffer.size()); }
-    int fd() { return fd_; }
-    int release()
+    virtual int write(const std::string& buffer) { return ::write(fd_, buffer.c_str(), buffer.size()); }
+    virtual int fd() { return fd_; }
+    virtual int release()
     {
         auto fd = fd_;
         fd_ = -1;

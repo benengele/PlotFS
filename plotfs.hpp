@@ -2,6 +2,7 @@
 
 // local headers
 #include "device.hpp"
+#include "devicefactory.hpp"
 #include "file.hpp"
 #include "plot.hpp"
 
@@ -69,6 +70,7 @@ class PlotFS {
 private:
     GeometryT geom;
     std::shared_ptr<FileHandle> fd;
+    const DeviceFactory& deviceFactory;
 
     bool save()
     {
@@ -80,7 +82,6 @@ private:
         if (!fd->truncate()) {
             return false;
         }
-
         auto data = fbb.GetBufferPointer();
         auto size = fbb.GetSize();
         if (!fd->write(data, size)) {
@@ -164,7 +165,7 @@ public:
         return true;
     }
 
-    PlotFS(const std::string& path)
+    PlotFS(const std::string& path, const DeviceFactory& df = DeviceFactory()) : deviceFactory(df)
     {
         fd = FileHandle::open(path, O_RDWR, 0644);
         if (!fd) {
@@ -227,11 +228,12 @@ public:
             return false;
         });
         if(existing != geom.devices.end()) {
-            std::cerr << "A device (" << to_string((*existing)->id) << ") is already registered path " << dev_path << "." <<  std::endl;
+            std::cerr << "A device (" << to_string((*existing)->id) << ") is already registered at path " << dev_path << "." <<  std::endl;
             std::cerr << "Remove the existing device if you want to add a different one at the same path. " <<  std::endl;
             return false;
         }
-        auto device = DeviceHandle::open(dev_path, true);
+        
+        auto device = deviceFactory.open(dev_path, false);
         if (device) {
             if (!force) {
                 std::cerr << "This looks like a PlotFS partition. Use --force if you want to reset and add it." << std::endl;
@@ -241,7 +243,7 @@ public:
         }
 
         // format partition
-        device = DeviceHandle::format(dev_path);
+        device = deviceFactory.format(dev_path);
         if (!device) {
             std::cerr << "Failed to format device" << std::endl;
             return false;
@@ -275,7 +277,7 @@ public:
             return false;
         }
         std::cerr << "Fixing signature of " << to_string(dev_id) << " at " << device->get()->path << std::endl;
-        return DeviceHandle::format(device->get()->path, dev_id) != nullptr;
+        return deviceFactory.format(device->get()->path, dev_id) != nullptr;
     }
 
     bool addPlot(const std::string& plot_path)
@@ -305,10 +307,11 @@ public:
 
         class DeviceInitializer {
             private:
+                const DeviceFactory& deviceFactory;
                 DeviceT device;
                 std::shared_ptr<DeviceHandle> handle;
             public:
-                DeviceInitializer(DeviceT d) : device(d) {}
+                DeviceInitializer(DeviceT d, const DeviceFactory& df) : device(d), deviceFactory(df) {}
                 
                 std::string path() { return device.path; }
                 const std::vector<uint8_t>& id() const { return device.id; }
@@ -316,7 +319,7 @@ public:
                 std::shared_ptr<DeviceHandle> loadHandle() {
                     if(!handle) {
                         std::cout << "Loadind device handle for " << path() << "...";
-                        std::shared_ptr<DeviceHandle> dh = DeviceHandle::open(device.path, true, O_RDWR);
+                        std::shared_ptr<DeviceHandle> dh = deviceFactory.open(device.path, true, O_RDWR);
                         if (!dh) {
                             std::cout << std::endl;
                             std::cerr << "ERROR: Failed to open device: " << to_string(device.id) << " at " << device.path << std::endl;
@@ -347,7 +350,7 @@ public:
         std::vector<free_shard> freespace;
         for (const auto& device : geom.devices) {
             freespace.push_back(
-                free_shard { device->begin, device->end, std::make_shared<uint64_t>(device->end - device->end), std::make_shared<DeviceInitializer>(DeviceInitializer(*device))});
+                free_shard { device->begin, device->end, std::make_shared<uint64_t>(device->end - device->end), std::make_shared<DeviceInitializer>(DeviceInitializer(*device, deviceFactory))});
         }
 
         // Caclulate the free space runs in the pool by assuming every device is empty
