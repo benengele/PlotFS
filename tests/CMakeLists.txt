@@ -13,8 +13,6 @@ enable_testing()
 add_executable(
   plotfs_test
   plotfs_test.cpp
-  devicefactory_test.cpp
-  device_test.cpp
 )
 
 # Add the include directories

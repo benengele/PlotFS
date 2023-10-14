@@ -16,7 +16,6 @@ public:
     virtual std::shared_ptr<DeviceHandle> format(const std::string& path) const
     {
         // generate 32 byte random id
-        std::cout << "FORMAT" << std::endl;
         std::random_device rd;
         std::mt19937 mt(rd());
         std::uniform_int_distribution<uint64_t> dist(0, 255);

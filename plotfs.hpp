@@ -1,9 +1,11 @@
 #pragma once
 
 // local headers
-#include "device.hpp"
-#include "devicefactory.hpp"
+
 #include "file.hpp"
+#include "devicefactory.hpp"
+#include "device.hpp"
+#include "plotfactory.hpp"
 #include "plot.hpp"
 
 #include "plotfs_generated.h"
@@ -71,6 +73,7 @@ private:
     GeometryT geom;
     std::shared_ptr<FileHandle> fd;
     const DeviceFactory& deviceFactory;
+    const PlotFactory& plotFactory;
 
     bool save()
     {
@@ -165,7 +168,9 @@ public:
         return true;
     }
 
-    PlotFS(const std::string& path, const DeviceFactory& df = DeviceFactory()) : deviceFactory(df)
+    PlotFS(const std::string& path, 
+        const DeviceFactory& df = DeviceFactory(), 
+        const PlotFactory& pf = PlotFactory()) : deviceFactory(df), plotFactory(pf)
     {
         fd = FileHandle::open(path, O_RDWR, 0644);
         if (!fd) {
@@ -286,7 +291,8 @@ public:
             std::cerr << "No devices registered" << std::endl;
             return false;
         }
-        auto plot_file = PlotFile::open(plot_path);
+        
+        auto plot_file = plotFactory.openPlot(plot_path);
         if (!plot_file) {
             std::cerr << "failed to open plot: " << plot_path << std::endl;
             return false;
@@ -353,6 +359,7 @@ public:
                 free_shard { device->begin, device->end, std::make_shared<uint64_t>(device->end - device->end), std::make_shared<DeviceInitializer>(DeviceInitializer(*device, deviceFactory))});
         }
 
+
         // Caclulate the free space runs in the pool by assuming every device is empty
         // then subtracting the used space from the free space resulting in fragmented runs
         for (const auto& plot : geom.plots) {
@@ -415,7 +422,7 @@ public:
         // }
 
         
-        auto reserveSpace = [](std::vector<free_shard> freespace, std::vector<free_shard> *reserved_space, long plot_size) {
+        auto reserveSpace = [](std::vector<free_shard> freespace, std::vector<free_shard> *reserved_space, size_t plot_size) {
             
             auto space_needed = static_cast<uint64_t>(plot_size);
             for (const auto& shard : freespace) {
@@ -467,7 +474,6 @@ public:
             s->device_id = reserved.device->id();
             s->begin = reserved.begin;
             s->end = reserved.end;
-            std::cout << "Shard " << s->begin << " " << s-> end << std::endl;
             shards.emplace_back(std::move(s));
         }
 
@@ -515,8 +521,8 @@ public:
                 // split up the writes a little bit
                 uint64_t bytes_to_write = std::min(shard_size, static_cast<uint64_t>(1024 * 1024 * 1024));
                 std::cerr << int(100 * off_in / plot_stat.st_size) << "% writing up to " << bytes_to_write << " bytes from offset " << off_in << " to device " << to_string(device->id()) << std::endl;
-                auto bytes_written = sendfile64(device->fd(), plot_file->fd(), &off_in, bytes_to_write);
-                if (bytes_written < 0) {
+                auto bytes_written = device->write(plot_file, &off_in, bytes_to_write);
+                if (bytes_written <= 0) {
                     removePlot(plot_file->id());
                     std::cerr << "failed to copy plot to device " << errno << std::endl;
                     return false;

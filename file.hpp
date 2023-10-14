@@ -9,6 +9,7 @@
 #include <sys/file.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
+#include <sys/sendfile.h>
 #include <unistd.h>
 
 class FileHandle {
@@ -58,7 +59,7 @@ public:
         return st;
     }
     virtual uint64_t size() const { return stat().st_size; }
-    virtual bool seek(off64_t offset) { return offset == ::lseek64(fd_, offset, SEEK_SET); }
+    virtual bool seek(off64_t offset)const { return offset == ::lseek64(fd_, offset, SEEK_SET); }
     virtual bool truncate(off64_t offset = 0) { return 0 == ::ftruncate(fd_, offset); }
     virtual bool lock(int operation) { return 0 == ::flock(fd_, operation); }
     virtual bool sync() { return 0 == ::syncfs(fd_); }
@@ -91,7 +92,7 @@ public:
         return tsize;
     }
     virtual int write(const std::string& buffer) { return ::write(fd_, buffer.c_str(), buffer.size()); }
-    virtual int fd() { return fd_; }
+    virtual ssize_t write(std::shared_ptr<FileHandle> from, off_t * offset, size_t length) { return sendfile64(fd_, from->fd_, offset, length); }
     virtual int release()
     {
         auto fd = fd_;
